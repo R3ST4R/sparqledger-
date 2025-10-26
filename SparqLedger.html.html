@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SparqLedger – Smart Expense Tracker</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #2d3748;
+      --card-bg: #f8f9fa;
+      --border: #e2e8f0;
+      --primary: #3182ce;
+      --success: #48bb78;
+      --danger: #e53e3e;
+      --warning: #ed8936;
+      --info: #319795;
+      --income: #38a169;
+      --shadow: rgba(0, 0, 0, 0.08);
+      --radius: 12px;
+      --font: system-ui, -apple-system, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --text: #e2e8f0;
+        --card-bg: #1e1e1e;
+        --border: #333;
+        --shadow: rgba(0, 0, 0, 0.3);
+      }
+    }
+
+    [data-theme="light"] { --bg: #fff; --text: #2d3748; --card-bg: #f8f9fa; --border: #e2e8f0; }
+    [data-theme="dark"] { --bg: #121212; --text: #e2e8f0; --card-bg: #1e1e1e; --border: #333; }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 16px;
+      transition: background 0.3s, color 0.3s;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+
+    /* HEADER */
+    header { text-align: center; margin-bottom: 24px; padding-top: 12px; }
+    .app-name {
+      font-size: 2.2rem; font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--success));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .app-tagline { font-size: 1rem; opacity: 0.8; }
+
+    /* FORM */
+    .expense-form {
+      background: var(--card-bg); padding: 20px; border-radius: var(--radius);
+      box-shadow: 0 4px 12px var(--shadow); margin-bottom: 24px;
+      display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    }
+    .form-row { grid-column: 1 / -1; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+    .expense-form input, .expense-form select {
+      padding: 10px; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg); color: var(--text); font-size: 1rem;
+    }
+    .toggle-income { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+    .toggle-income input { width: auto; margin: 0; }
+    .expense-form button {
+      grid-column: 1 / -1; background: var(--primary); color: white; border: none;
+      border-radius: 8px; font-weight: bold; cursor: pointer;
+    }
+    .income-mode .expense-form button { background: var(--income); }
+
+    /* SUMMARY */
+    .summary {
+      background: var(--card-bg); padding: 20px; border-radius: var(--radius);
+      box-shadow: 0 4px 12px var(--shadow); margin-bottom: 24px;
+    }
+    .summary h2 { margin-bottom: 16px; font-size: 1.3rem; }
+    .net-balance { font-size: 1.4rem; font-weight: bold; margin-bottom: 12px; }
+    .total-row { display: flex; gap: 20px; margin-bottom: 16px; }
+    .total-box { padding: 10px; border-radius: 8px; text-align: center; flex: 1; }
+    .total-expenses { background: rgba(229, 62, 62, 0.1); color: var(--danger); }
+    .total-income { background: rgba(56, 161, 105, 0.1); color: var(--income); }
+
+    .budget-row { display: flex; gap: 10px; margin-bottom: 16px; }
+    .budget-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; }
+    .budget-status { font-weight: bold; padding: 8px 12px; border-radius: 8px; }
+    .budget-ok { background: rgba(72, 187, 120, 0.2); color: var(--success); }
+    .budget-warning { background: rgba(237, 137, 54, 0.2); color: var(--warning); }
+    .budget-over { background: rgba(229, 62, 62, 0.2); color: var(--danger); }
+
+    /* CALENDAR HEATMAP */
+    .heatmap-title { margin: 20px 0 10px; font-size: 1.1rem; }
+    .calendar-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+    }
+    .calendar-day {
+      aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; border-radius: 3px; background: var(--card-bg); color: var(--text);
+    }
+    .calendar-day.spent {
+      color: white; font-weight: bold;
+    }
+
+    /* CATEGORY BARS */
+    .category-bars { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .category-bar {
+      height: 28px; border-radius: 6px; display: flex; align-items: center; padding: 0 10px;
+      color: white; font-size: 0.9rem; font-weight: 500;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    /* FILTER & LIST */
+    .filter-bar {
+      background: var(--card-bg); padding: 16px; border-radius: var(--radius);
+      box-shadow: 0 4px 12px var(--shadow); margin-bottom: 24px;
+      display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+    .expenses-list { display: flex; flex-direction: column; gap: 12px; }
+    .expense-card {
+      background: var(--card-bg); padding: 16px; border-radius: var(--radius);
+      box-shadow: 0 2px 8px var(--shadow); display: flex; justify-content: space-between;
+    }
+    .expense-info { flex: 1; }
+    .expense-category {
+      display: inline-block; padding: 4px 8px; border-radius: 20px;
+      font-size: 0.8rem; font-weight: bold; color: white; margin-bottom: 6px;
+    }
+    .expense-amount { font-weight: bold; font-size: 1.1rem; }
+    .expense-income .expense-amount { color: var(--income); }
+    .expense-expense .expense-amount { color: var(--danger); }
+    .expense-note { font-size: 0.9rem; opacity: 0.8; margin-top: 4px; }
+    .expense-date { font-size: 0.85rem; opacity: 0.7; }
+    .delete-btn {
+      background: var(--danger); color: white; border: none; width: 28px; height: 28px;
+      border-radius: 50%; font-weight: bold; cursor: pointer; display: flex;
+      align-items: center; justify-content: center; margin-left: 12px;
+    }
+
+    /* EMPTY STATE */
+    .empty-state { text-align: center; padding: 40px 20px; opacity: 0.7; }
+    .empty-state svg { width: 80px; height: 80px; margin-bottom: 16px; opacity: 0.4; }
+
+    /* ACTIONS */
+    .action-bar {
+      display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap;
+    }
+    .action-btn {
+      flex: 1; min-width: 120px; padding: 10px; border: none; border-radius: 8px;
+      font-weight: bold; cursor: pointer;
+    }
+    .export-btn { background: var(--info); color: white; }
+    .backup-btn { background: var(--warning); color: white; }
+    .clear-btn { background: var(--danger); color: white; }
+    .print-btn { background: var(--primary); color: white; }
+    .action-btn:hover { opacity: 0.9; }
+
+    /* FOOTER */
+    footer { text-align: center; margin-top: 40px; padding: 20px; font-size: 0.85rem; opacity: 0.7; }
+
+    /* THEME TOGGLE */
+    .theme-toggle {
+      position: fixed; top: 16px; right: 16px; background: var(--card-bg);
+      border: 1px solid var(--border); width: 40px; height: 40px; border-radius: 50%;
+      font-size: 16px; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; box-shadow: 0 2px 6px var(--shadow); z-index: 10;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 600px) {
+      .expense-form, .filter-bar { grid-template-columns: 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+      .total-row, .budget-row { flex-direction: column; gap: 8px; }
+      .expense-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+    }
+
+    /* COLORS */
+    .cat-food { background-color: #e53e3e; }
+    .cat-transport { background-color: #3182ce; }
+    .cat-bills { background-color: #ed8936; }
+    .cat-shopping { background-color: #805ad5; }
+    .cat-entertainment { background-color: #d69e2e; }
+    .cat-other { background-color: #38a169; }
+    .cat-income { background-color: #38a169; }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" id="themeToggle">🌓</button>
+
+  <div class="container">
+    <header>
+      <h1 class="app-name">SparqLedger</h1>
+      <p class="app-tagline">Track. Budget. Spark smarter spending.</p>
+    </header>
+
+    <form class="expense-form" id="expenseForm">
+      <div class="toggle-income">
+        <input type="checkbox" id="incomeToggle" />
+        <label for="incomeToggle">Add as Income</label>
+      </div>
+      <input type="date" id="dateInput" required />
+      <input type="number" id="amountInput" placeholder="Amount" step="0.01" min="0.01" required />
+      <select id="categoryInput" required>
+        <option value="food">Food</option>
+        <option value="transport">Transport</option>
+        <option value="bills">Bills</option>
+        <option value="shopping">Shopping</option>
+        <option value="entertainment">Entertainment</option>
+        <option value="other">Other</option>
+      </select>
+      <div class="form-row">
+        <input type="text" id="noteInput" placeholder="Note (optional)" />
+        <select id="recurringInput">
+          <option value="">One-time</option>
+          <option value="weekly">Recurring: Weekly</option>
+          <option value="monthly">Recurring: Monthly</option>
+        </select>
+      </div>
+      <button type="submit">Add Entry</button>
+    </form>
+
+    <div class="filter-bar">
+      <input type="text" id="searchInput" placeholder="Search notes..." />
+      <select id="categoryFilter">
+        <option value="">All Categories</option>
+        <option value="food">Food</option>
+        <option value="transport">Transport</option>
+        <option value="bills">Bills</option>
+        <option value="shopping">Shopping</option>
+        <option value="entertainment">Entertainment</option>
+        <option value="other">Other</option>
+        <option value="income">Income</option>
+      </select>
+      <input type="date" id="dateFrom" />
+      <input type="date" id="dateTo" />
+    </div>
+
+    <div class="summary">
+      <h2>Financial Summary</h2>
+      
+      <div class="net-balance">Net Balance: $<span id="netBalance">0.00</span></div>
+      
+      <div class="total-row">
+        <div class="total-box total-income">
+          Income: $<span id="totalIncome">0.00</span>
+        </div>
+        <div class="total-box total-expenses">
+          Expenses: $<span id="totalExpenses">0.00</span>
+        </div>
+      </div>
+
+      <div class="budget-row">
+        <input type="number" id="budgetInput" class="budget-input" placeholder="Monthly budget ($)" step="1" min="0" />
+        <div id="budgetStatus" class="budget-status">Set a budget</div>
+      </div>
+
+      <div class="heatmap">
+        <div class="heatmap-title">Spending This Month</div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+      </div>
+
+      <div class="category-bars" id="categoryBars"></div>
+    </div>
+
+    <div class="expenses-list" id="expensesList">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M12 2v20M2 12h20" stroke-width="2"/>
+        </svg>
+        <p>Add your first expense to get started!</p>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="action-btn export-btn" id="exportBtn">Export CSV</button>
+      <button class="action-btn backup-btn" id="backupBtn">Backup Data</button>
+      <button class="action-btn print-btn" id="printBtn">Print Summary</button>
+      <button class="action-btn clear-btn" id="clearBtn">Clear All</button>
+    </div>
+
+    <footer>
+      Made with care • Data stays on your device • 
+      <span id="creditName">SparqLedger v2.1</span>
+    </footer>
+  </div>
+
+  <script>
+    // ===== CUSTOMIZE YOUR NAME HERE =====
+    const CREDIT_NAME = "Your Name"; // ← Replace "Your Name" with your actual name!
+    // ===================================
+
+    const CATEGORIES = {
+      food: 'Food', transport: 'Transport', bills: 'Bills',
+      shopping: 'Shopping', entertainment: 'Entertainment', other: 'Other', income: 'Income'
+    };
+
+    let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+    let monthlyBudget = parseFloat(localStorage.getItem('monthlyBudget')) || 0;
+
+    // DOM
+    const expenseForm = document.getElementById('expenseForm');
+    const expensesList = document.getElementById('expensesList');
+    const totalIncomeEl = document.getElementById('totalIncome');
+    const totalExpensesEl = document.getElementById('totalExpenses');
+    const netBalanceEl = document.getElementById('netBalance');
+    const categoryBarsEl = document.getElementById('categoryBars');
+    const themeToggle = document.getElementById('themeToggle');
+    const budgetInput = document.getElementById('budgetInput');
+    const budgetStatusEl = document.getElementById('budgetStatus');
+    const calendarGrid = document.getElementById('calendarGrid');
+    const creditNameEl = document.getElementById('creditName');
+
+    // Set credit
+    if (CREDIT_NAME && CREDIT_NAME !== "Your Name") {
+      creditNameEl.textContent = `© ${CREDIT_NAME} • SparqLedger v2.1`;
+    }
+
+    // Theme
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+    }
+    function initTheme() {
+      const saved = localStorage.getItem('theme');
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setTheme(saved || (dark ? 'dark' : 'light'));
+    }
+    themeToggle.addEventListener('click', () => {
+      const t = document.documentElement.getAttribute('data-theme');
+      setTheme(t === 'dark' ? 'light' : 'dark');
+    });
+
+    // CALENDAR RENDER (always shows current month)
+    function renderCalendar() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth(); // 0-indexed
+      const firstDay = new Date(year, month, 1).getDay(); // 0 = Sunday
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      // Daily totals (expenses only)
+      const dailyTotals = {};
+      expenses
+        .filter(e => e.type !== 'income')
+        .filter(e => {
+          const d = new Date(e.date);
+          return d.getFullYear() === year && d.getMonth() === month;
+        })
+        .forEach(e => {
+          dailyTotals[e.date] = (dailyTotals[e.date] || 0) + e.amount;
+        });
+
+      const maxAmount = Math.max(...Object.values(dailyTotals), 1);
+
+      calendarGrid.innerHTML = '';
+      // Empty days before 1st
+      for (let i = 0; i < firstDay; i++) {
+        const el = document.createElement('div');
+        el.className = 'calendar-day';
+        el.textContent = '';
+        calendarGrid.appendChild(el);
+      }
+      // Days of month
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const amount = dailyTotals[dateStr] || 0;
+        const el = document.createElement('div');
+        el.className = 'calendar-day';
+        el.textContent = day;
+        if (amount > 0) {
+          const intensity = Math.min(100, Math.floor((amount / maxAmount) * 100));
+          const lightness = 100 - intensity / 2;
+          el.style.backgroundColor = `hsl(0, 80%, ${lightness}%)`;
+          el.style.color = lightness < 60 ? 'white' : 'black';
+          el.classList.add('spent');
+          el.title = `$${amount.toFixed(2)}`;
+        }
+        calendarGrid.appendChild(el);
+      }
+    }
+
+    // BUDGET & SUMMARY
+    function updateBudgetStatus() {
+      const totalExp = expenses
+        .filter(e => e.type !== 'income')
+        .reduce((sum, e) => sum + e.amount, 0);
+
+      if (monthlyBudget > 0) {
+        const pct = (totalExp / monthlyBudget) * 100;
+        let msg = 'Under budget 🎯';
+        let cls = 'budget-ok';
+        if (pct >= 100) {
+          msg = 'Over budget! ⚠️';
+          cls = 'budget-over';
+        } else if (pct >= 80) {
+          msg = 'Approaching limit ⏳';
+          cls = 'budget-warning';
+        }
+        budgetStatusEl.textContent = msg;
+        budgetStatusEl.className = 'budget-status ' + cls;
+      } else {
+        budgetStatusEl.textContent = 'Set a budget';
+        budgetStatusEl.className = 'budget-status';
+      }
+    }
+
+    function renderSummary() {
+      const income = expenses.filter(e => e.type === 'income').reduce((s, e) => s + e.amount, 0);
+      const expTotal = expenses.filter(e => e.type !== 'income').reduce((s, e) => s + e.amount, 0);
+      const net = income - expTotal;
+
+      totalIncomeEl.textContent = income.toFixed(2);
+      totalExpensesEl.textContent = expTotal.toFixed(2);
+      netBalanceEl.textContent = net.toFixed(2);
+      netBalanceEl.style.color = net >= 0 ? 'var(--income)' : 'var(--danger)';
+
+      // Category bars
+      const catTotals = {};
+      expenses
+        .filter(e => e.type !== 'income')
+        .forEach(e => {
+          catTotals[e.category] = (catTotals[e.category] || 0) + e.amount;
+        });
+      const maxCat = Math.max(...Object.values(catTotals), 1);
+      categoryBarsEl.innerHTML = '';
+      Object.entries(catTotals).forEach(([cat, amt]) => {
+        const bar = document.createElement('div');
+        bar.className = 'category-bar';
+        bar.style.background = `linear-gradient(to right, var(--primary) ${amt / maxCat * 100}%, var(--border) ${amt / maxCat * 100}%)`;
+        bar.textContent = `${CATEGORIES[cat]}: $${amt.toFixed(2)}`;
+        categoryBarsEl.appendChild(bar);
+      });
+
+      updateBudgetStatus();
+      renderCalendar();
+    }
+
+    // EXPENSE LIST
+    function renderExpenses() {
+      const filtered = expenses.filter(e => {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const cat = document.getElementById('categoryFilter').value;
+        const from = document.getElementById('dateFrom').value;
+        const to = document.getElementById('dateTo').value;
+        if (search && !e.note.toLowerCase().includes(search)) return false;
+        if (cat && e.category !== cat) return false;
+        if (from && e.date < from) return false;
+        if (to && e.date > to) return false;
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        expensesList.innerHTML = `
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M12 2v20M2 12h20" stroke-width="2"/>
+            </svg>
+            <p>No matching expenses.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const sorted = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+      expensesList.innerHTML = '';
+      sorted.forEach(e => {
+        const card = document.createElement('div');
+        card.className = `expense-card expense-${e.type}`;
+        card.innerHTML = `
+          <div class="expense-info">
+            <span class="expense-category cat-${e.category}">${CATEGORIES[e.category]}</span>
+            <div class="expense-amount">$${e.amount.toFixed(2)}</div>
+            ${e.note ? `<div class="expense-note">${e.note}</div>` : ''}
+            <div class="expense-date">${e.date}${e.recurring ? ` (${e.recurring})` : ''}</div>
+          </div>
+          <button class="delete-btn" data-id="${e.id}">×</button>
+        `;
+        expensesList.appendChild(card);
+      });
+
+      document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.id;
+          expenses = expenses.filter(e => e.id !== id);
+          saveAndRender();
+        });
+      });
+    }
+
+    function saveAndRender() {
+      localStorage.setItem('expenses', JSON.stringify(expenses));
+      localStorage.setItem('monthlyBudget', monthlyBudget);
+      renderExpenses();
+      renderSummary();
+    }
+
+    // FORM
+    expenseForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const isIncome = document.getElementById('incomeToggle').checked;
+      const date = document.getElementById('dateInput').value;
+      const amount = parseFloat(document.getElementById('amountInput').value);
+      const note = document.getElementById('noteInput').value.trim();
+      const recurring = document.getElementById('recurringInput').value;
+      let category = document.getElementById('categoryInput').value;
+
+      if (!date || isNaN(amount) || amount <= 0) return;
+
+      if (isIncome) category = 'income';
+
+      expenses.push({
+        id: Date.now().toString(),
+        date,
+        amount,
+        category,
+        note,
+        type: isIncome ? 'income' : 'expense',
+        recurring: recurring || null
+      });
+
+      saveAndRender();
+      expenseForm.reset();
+      document.getElementById('dateInput').valueAsDate = new Date();
+    });
+
+    // BUDGET INPUT
+    budgetInput.addEventListener('input', () => {
+      const val = parseFloat(budgetInput.value);
+      monthlyBudget = isNaN(val) || val <= 0 ? 0 : val;
+      saveAndRender();
+    });
+
+    // FILTERS
+    ['searchInput', 'categoryFilter', 'dateFrom', 'dateTo'].forEach(id => {
+      document.getElementById(id).addEventListener('input', renderExpenses);
+    });
+
+    // EXPORT
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      if (expenses.length === 0) return alert('No data to export!');
+      let csv = 'Date,Amount,Type,Category,Note,Recurring\n';
+      expenses.forEach(e => {
+        csv += `"${e.date}",${e.amount},"${e.type}","${CATEGORIES[e.category]}","${(e.note || '').replace(/"/g, '""')}","${e.recurring || ''}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sparqledger-expenses.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // BACKUP
+    document.getElementById('backupBtn').addEventListener('click', () => {
+      const data = JSON.stringify({ expenses, monthlyBudget, version: 'SparqLedger v2.1' }, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sparqledger-backup.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // CLEAR
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      if (confirm('Delete all data? This cannot be undone.')) {
+        expenses = [];
+        monthlyBudget = 0;
+        localStorage.removeItem('expenses');
+        localStorage.removeItem('monthlyBudget');
+        budgetInput.value = '';
+        saveAndRender();
+      }
+    });
+
+    // PRINT
+    document.getElementById('printBtn').addEventListener('click', () => window.print());
+
+    // INIT
+    initTheme();
+    document.getElementById('dateInput').valueAsDate = new Date();
+    budgetInput.value = monthlyBudget || '';
+    renderExpenses();
+    renderSummary();
+  </script>
+</body>
+</html>
